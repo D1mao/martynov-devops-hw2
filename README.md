@@ -11,7 +11,7 @@
 - Отключить авторизацию по паролю при ssh подключении.
 - Создать директорию в /opt/ с правами 660 для пользователя.
 
-
+## Выполнение и результаты:
 ```
 ubuntu@ubuntu:~/devops/martynov-devops-hw2$ ansible-playbook playbook.yml 
 
