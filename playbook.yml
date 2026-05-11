@@ -1,0 +1,87 @@
+---
+- name: Configure remote server for DevOps HW2
+  hosts: servers
+  become: true
+
+  vars:
+    new_user: devopsuser
+    user_shell: /bin/bash
+
+    ssh_public_key_path: "{{ lookup('env', 'HOME') }}/.ssh/devops_hw2.pub"
+
+    opt_directory: "/opt/{{ new_user }}_workdir"
+    ssh_service_name: ssh
+
+  tasks:
+    - name: Ensure sudo package is installed
+      ansible.builtin.package:
+        name: sudo
+        state: present
+
+    - name: Create user
+      ansible.builtin.user:
+        name: "{{ new_user }}"
+        shell: "{{ user_shell }}"
+        create_home: true
+        state: present
+
+    - name: Give user sudo rights without password
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/{{ new_user }}"
+        content: "{{ new_user }} ALL=(ALL:ALL) NOPASSWD:ALL\n"
+        owner: root
+        group: root
+        mode: "0440"
+        validate: "visudo -cf %s"
+
+    - name: Create .ssh directory for user
+      ansible.builtin.file:
+        path: "/home/{{ new_user }}/.ssh"
+        state: directory
+        owner: "{{ new_user }}"
+        group: "{{ new_user }}"
+        mode: "0700"
+
+    - name: Add authorized SSH key for user
+      ansible.builtin.authorized_key:
+        user: "{{ new_user }}"
+        key: "{{ lookup('file', ssh_public_key_path) }}"
+        state: present
+
+    - name: Disable SSH password authentication
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication\s+'
+        line: 'PasswordAuthentication no'
+        backup: true
+      notify: Restart ssh
+
+    - name: Disable SSH keyboard-interactive authentication
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?KbdInteractiveAuthentication\s+'
+        line: 'KbdInteractiveAuthentication no'
+        backup: true
+      notify: Restart ssh
+
+    - name: Enable SSH public key authentication
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PubkeyAuthentication\s+'
+        line: 'PubkeyAuthentication yes'
+        backup: true
+      notify: Restart ssh
+
+    - name: Create directory in /opt for user
+      ansible.builtin.file:
+        path: "{{ opt_directory }}"
+        state: directory
+        owner: "{{ new_user }}"
+        group: "{{ new_user }}"
+        mode: "0660"
+
+  handlers:
+    - name: Restart ssh
+      ansible.builtin.service:
+        name: "{{ ssh_service_name }}"
+        state: restarted
